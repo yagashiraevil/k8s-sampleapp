@@ -1,19 +1,25 @@
 package util
 
-import "github.com/spf13/viper"
+import (
+	"github.com/spf13/viper"
+	"os"
+)
 
 type Config struct {
 	BindAddr string `mapstructure:"bind_addr"`
-	BindPort string `mapstructure:"bind_port"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
 	viper.AddConfigPath(path)
 	viper.SetConfigName("app")
 	viper.SetConfigType("env")
+
 	viper.AutomaticEnv()
+
 	if err := viper.ReadInConfig(); err != nil {
-		return config, err
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			config.BindAddr = os.Getenv("bind_addr")
+		}
 	}
 	if err := viper.Unmarshal(&config); err != nil {
 		return config, err

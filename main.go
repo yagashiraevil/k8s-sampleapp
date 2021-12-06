@@ -7,14 +7,25 @@ import (
 	"github.com/hashicorp/go-hclog"
 	myhandlers "github.com/yagashiraevil/k8s-sampleapp/handlers"
 	"github.com/yagashiraevil/k8s-sampleapp/util"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"time"
 )
 
 func main() {
 	l := hclog.Default()
+	isReady := &atomic.Value{}
+	isReady.Store(false)
+	go func() {
+		log.Printf("Readyz probe is negative by default...")
+		// Instead of time.sleep you can put logic here to determine readiness
+		time.Sleep(1 * time.Second)
+		isReady.Store(true)
+		log.Printf("Readyz probe is positive.")
+	}()
 	var config, err = util.LoadConfig(".")
 	if err != nil {
 		l.Error("failed to load config", "error", err)
@@ -28,6 +39,8 @@ func main() {
 
 	// Routes
 	sm.HandleFunc("/", myhandlers.NewHome)
+	sm.HandleFunc("/healthz", myhandlers.Healthz)
+	sm.HandleFunc("/readyz", myhandlers.Readyz(isReady))
 
 	s := http.Server{
 		Addr:    config.BindAddr,
