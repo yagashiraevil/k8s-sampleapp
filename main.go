@@ -8,6 +8,7 @@ import (
 	myhandlers "github.com/yagashiraevil/k8s-sampleapp/handlers"
 	"github.com/yagashiraevil/k8s-sampleapp/util"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,19 +18,29 @@ import (
 
 func main() {
 	l := hclog.Default()
+	var config, err = util.LoadConfig(".")
+	if err != nil {
+		l.Error("failed to load config", "error", err)
+	}
 	isReady := &atomic.Value{}
 	isReady.Store(false)
 	go func() {
 		log.Printf("Readyz probe is negative by default...")
 		// Instead of time.sleep you can put logic here to determine readiness
-		time.Sleep(1 * time.Second)
-		isReady.Store(true)
-		log.Printf("Readyz probe is positive.")
+		for !isReady.Load().(bool) {
+			//	check for database connection and other logic here
+			conn, _ := net.Dial("tcp", config.DBHost+":"+config.DBPort)
+			if conn != nil {
+				conn.Close()
+				isReady.Store(true)
+				log.Printf("Readyz probe is positive.")
+			}
+			log.Printf("Waiting for DB to come alive.")
+			time.Sleep(time.Second * 1)
+
+		}
+
 	}()
-	var config, err = util.LoadConfig(".")
-	if err != nil {
-		l.Error("failed to load config", "error", err)
-	}
 
 	// create a new server mux and register handlers
 	sm := mux.NewRouter()
